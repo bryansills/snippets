@@ -16,6 +16,7 @@
 
 package com.example.camera.snippets.camerax
 
+import android.annotation.SuppressLint
 import android.content.ContentValues
 import android.content.Context
 import android.hardware.camera2.CameraCharacteristics
@@ -42,24 +43,31 @@ import androidx.camera.core.Preview
 import androidx.camera.core.UseCase
 import androidx.camera.core.ZoomState
 import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.video.FileOutputOptions
+import androidx.camera.video.MediaStoreOutputOptions
 import androidx.camera.video.Quality
 import androidx.camera.video.QualitySelector
 import androidx.camera.video.Recorder
 import androidx.camera.video.Recording
 import androidx.camera.video.VideoCapture
+import androidx.camera.video.VideoRecordEvent
 import androidx.camera.view.CameraController
 import androidx.camera.view.CameraController.VIDEO_CAPTURE
 import androidx.camera.view.LifecycleCameraController
 import androidx.camera.view.PreviewView
+import androidx.camera.view.video.AudioConfig
 import androidx.concurrent.futures.await
 import androidx.core.content.ContextCompat
+import androidx.core.util.Consumer
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
+import com.example.camera.snippets.R
+import com.example.camera.snippets.databinding.ActivityCamera1VideoCaptureBindBinding
+import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Locale
-import kotlinx.coroutines.launch
 
 private const val TAG = "Camera1ToCameraX"
 
@@ -375,6 +383,92 @@ private fun enableVideoCapture(cameraController: LifecycleCameraController) {
     // [END android_camerax_camera1_to_camerax_video_controller_enable]
 }
 
+
+private class RecordVideoCameraControllerActivity : ComponentActivity() {
+    private lateinit var cameraController: CameraController
+
+    // [START android_camerax_camera1_migration_video_cameracontroller]
+    /*
+     * !!! START NOTE FROM BRYAN !!!
+     * This nullable `Recording` is how you track to see if the user is currently recording video.
+     * !!! END NOTE FROM BRYAN !!!
+     */
+    private var recording: Recording? = null
+    private val FILENAME_FORMAT = "yyyy-MM-dd-HH-mm-ss-SSS"
+
+    /*
+     * !!! START NOTE FROM BRYAN !!!
+     * `OnVideoSavedCallback` no longer exists. This updated `inner class` should work.
+     * !!! END NOTE FROM BRYAN !!!
+     */
+    // Define a VideoSaveCallback class for handling success and error states.
+    inner class VideoSaveCallback : Consumer<VideoRecordEvent> {
+        override fun accept(value: VideoRecordEvent) {
+            if (value is VideoRecordEvent.Finalize) {
+                if (!value.hasError()) {
+                    val msg = "Video capture succeeded: ${value.outputResults.outputUri}"
+                    Toast.makeText(baseContext, msg, Toast.LENGTH_SHORT).show()
+                    Log.d(TAG, msg)
+                } else {
+                    Log.d(TAG, "error saving video: ${value.error}", value.cause)
+                }
+            }
+        }
+    }
+
+    private fun startStopVideo() {
+        /*
+         * !!! START NOTE FROM BRYAN !!!
+         * `cameraController.stopRecording()` no longer exists. Keeping this nullable `Recording` is
+         * how you track to see if the user is currently recording video.
+         * !!! END NOTE FROM BRYAN !!!
+         */
+        if (recording != null) {
+            // Stop the current recording session.
+            recording?.stop()
+            recording = null
+            return
+        }
+
+        // Define the File options for saving the video.
+        val name = SimpleDateFormat(FILENAME_FORMAT, Locale.US)
+            .format(System.currentTimeMillis())
+
+        /*
+         * !!! START NOTE FROM BRYAN !!!
+         * `OutputFileOptions` was renamed to `FileOutputOptions`
+         * !!! END NOTE FROM BRYAN !!!
+         */
+        val outputFileOptions = FileOutputOptions
+            .Builder(File(this.filesDir, name))
+            .build()
+
+        /*
+         * !!! START NOTE FROM BRYAN !!!
+         * `recording` is set here.
+         * !!! END NOTE FROM BRYAN !!!
+         */
+        // Call startRecording on the CameraController.
+        recording = cameraController.startRecording(
+            outputFileOptions,
+            /*
+             * !!! START NOTE FROM BRYAN !!!
+             * New required parameter here.
+             * !!! END NOTE FROM BRYAN !!!
+             */
+            AudioConfig.AUDIO_DISABLED,
+            ContextCompat.getMainExecutor(this),
+            VideoSaveCallback()
+        )
+    }
+    // [END android_camerax_camera1_migration_video_cameracontroller]
+
+    companion object {
+        val TAG: String = RecordVideoCameraControllerActivity::class.java.name
+    }
+}
+
+@SuppressLint("MissingPermission")
 private class Camera1VideoCaptureBindActivity : ComponentActivity() {
     private fun bindVideoCapture(
         cameraProvider: ProcessCameraProvider,
@@ -406,6 +500,87 @@ private class Camera1VideoCaptureBindActivity : ComponentActivity() {
         var camera = cameraProvider.bindToLifecycle(
             this, cameraSelector, preview, videoCapture)
         // [END android_camerax_camera1_to_camerax_video_provider_bind]
+    }
+
+    private lateinit var viewBinding: ActivityCamera1VideoCaptureBindBinding
+
+    var videoCapture: VideoCapture<Recorder>? = null
+    var recording: Recording? = null
+
+    // [START android_camerax_camera1_migration_video_cameraprovider_startstop]
+    // CameraX: implement video capture with CameraProvider.
+
+    private val FILENAME_FORMAT = "yyyy-MM-dd-HH-mm-ss-SSS"
+
+    private fun startStopVideo() {
+        val videoCapture = this.videoCapture ?: return
+
+        if (recording != null) {
+            // Stop the current recording session.
+            recording?.stop()
+            recording = null
+            return
+        }
+
+        // Create and start a new recording session.
+        val name = SimpleDateFormat(FILENAME_FORMAT, Locale.US)
+            .format(System.currentTimeMillis())
+        val contentValues = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+            put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4")
+            if (Build.VERSION.SDK_INT > Build.VERSION_CODES.P) {
+                put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/CameraX-Video")
+            }
+        }
+
+        val mediaStoreOutputOptions = MediaStoreOutputOptions
+            .Builder(contentResolver, MediaStore.Video.Media.EXTERNAL_CONTENT_URI)
+            .setContentValues(contentValues)
+            .build()
+
+        recording = videoCapture.output
+            .prepareRecording(this, mediaStoreOutputOptions)
+            .withAudioEnabled()
+            .start(ContextCompat.getMainExecutor(this)) { recordEvent ->
+                when(recordEvent) {
+                    is VideoRecordEvent.Start -> {
+                        viewBinding.videoCaptureButton.apply {
+                            text = getString(R.string.stop_capture)
+                            isEnabled = true
+                        }
+                    }
+                    is VideoRecordEvent.Finalize -> {
+                        if (!recordEvent.hasError()) {
+                            val msg = "Video capture succeeded: " +
+                                    "${recordEvent.outputResults.outputUri}"
+                            Toast.makeText(
+                                baseContext, msg, Toast.LENGTH_SHORT
+                            ).show()
+                            Log.d(TAG, msg)
+                        } else {
+                            recording?.close()
+                            recording = null
+                            Log.e(
+                                TAG, "video capture ends with error",
+                                /*
+                                 * !!! START NOTE FROM BRYAN !!!
+                                 * Changed `recordEvent.error` to recordEvent.cause.
+                                 * !!! END NOTE FROM BRYAN !!!
+                                 */
+                                recordEvent.cause)
+                        }
+                        viewBinding.videoCaptureButton.apply {
+                            text = getString(R.string.start_capture)
+                            isEnabled = true
+                        }
+                    }
+                }
+            }
+    }
+    // [END android_camerax_camera1_migration_video_cameraprovider_startstop]
+
+    companion object {
+        private val TAG: String = Camera1VideoCaptureBindActivity::class.java.name
     }
 }
 
