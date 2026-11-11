@@ -25,8 +25,10 @@ import android.os.IBinder
 import android.util.Log
 import android.util.Rational
 import android.view.Display
+import android.view.MotionEvent
 import android.view.OrientationEventListener
 import android.view.Surface
+import android.view.SurfaceView
 import androidx.activity.ComponentActivity
 import androidx.annotation.OptIn
 import androidx.camera.camera2.Camera2Config
@@ -44,6 +46,7 @@ import androidx.camera.core.FocusMeteringAction.FLAG_AF
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.Preview
+import androidx.camera.core.SurfaceOrientedMeteringPointFactory
 import androidx.camera.core.UseCaseGroup
 import androidx.camera.core.ViewPort
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -216,6 +219,49 @@ private fun cameraControlCameraInfoSnippet(
     // For querying information and states.
     val cameraInfo = camera.cameraInfo
     // [END android_camerax_configuration_cameracontrol_camerainfo]
+}
+
+private fun createMeteringPoint(
+    previewView: PreviewView,
+    surfaceView: SurfaceView,
+    camera: Camera,
+    imageWidth: Int,
+    imageHeight: Int,
+    imageAnalysis: ImageAnalysis,
+) {
+    // [START android_camerax_configuration_meteringpoint_create]
+    // Use PreviewView.getMeteringPointFactory if PreviewView is used for preview.
+    previewView.setOnTouchListener { view, motionEvent ->
+        if (motionEvent.action == MotionEvent.ACTION_UP) {
+            val meteringPoint = previewView.meteringPointFactory
+                .createPoint(motionEvent.x, motionEvent.y)
+            // Build and start a FocusMeteringAction with meteringPoint.
+            view.performClick()
+        }
+        true
+    }
+
+    // Use DisplayOrientedMeteringPointFactory if SurfaceView / TextureView is used
+    // for preview. Note that if the preview is scaled or cropped in the View,
+    // it's the application's responsibility to transform the coordinates properly
+    // so that the width and height of this factory represents the full Preview FOV.
+    // And the (x,y) passed to create MeteringPoint might need to be adjusted with
+    // the offsets.
+    val displayFactory = DisplayOrientedMeteringPointFactory(
+        surfaceView.display,
+        camera.cameraInfo,
+        surfaceView.width.toFloat(),
+        surfaceView.height.toFloat()
+    )
+
+    // Use SurfaceOrientedMeteringPointFactory if the point is specified in
+    // ImageAnalysis ImageProxy.
+    val surfaceFactory = SurfaceOrientedMeteringPointFactory(
+        imageWidth.toFloat(),
+        imageHeight.toFloat(),
+        imageAnalysis
+    )
+    // [START android_camerax_configuration_meteringpoint_create]
 }
 
 private class FocusMeteringActivity : ComponentActivity() {
