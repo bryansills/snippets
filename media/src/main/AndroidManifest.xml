@@ -16,6 +16,37 @@
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <application />
+    <!-- [START android_media_playback_app_session_manifest] -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
+    <!-- @@@ Bryan: how do I omit or exclude some lines??? @@@ -->
+    <application>
+        <service
+            android:name=".PlaybackService"
+            android:foregroundServiceType="mediaPlayback"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaSessionService"/>
+            </intent-filter>
+        </service>
+    </application>
+    <!-- [START android_media_playback_app_session_manifest] -->
+
+    <!-- [START android_media_playback_app_library_manifest] -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+
+    <application>
+        <service
+            android:name=".LibraryService"
+            android:foregroundServiceType="mediaPlayback"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaLibraryService"/>
+                <action android:name="android.media.browse.MediaBrowserService"/>
+            </intent-filter>
+        </service>
+    </application>
+    <!-- [END android_media_playback_app_library_manifest] -->
 </manifest>

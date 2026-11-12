@@ -18,9 +18,17 @@ package com.example.media
 
 import android.content.Context
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.MediaSession
 
 private fun createExoPlayer(context: Context) {
     // [START android_media_playback_app_create_exoplayer]
     val player = ExoPlayer.Builder(context).build()
     // [END android_media_playback_app_create_exoplayer]
+}
+
+private fun createMediaSession(context: Context) {
+    // [START android_media_playback_app_create_mediasession]
+    val player = ExoPlayer.Builder(context).build()
+    val mediaSession = MediaSession.Builder(context, player).build()
+    // [END android_media_playback_app_create_mediasession]
 }
