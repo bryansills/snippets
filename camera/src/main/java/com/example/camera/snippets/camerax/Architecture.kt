@@ -17,14 +17,22 @@
 package com.example.camera.snippets.camerax
 
 import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraMetadata
 import android.os.Build
 import android.os.Bundle
+import android.util.Size
 import androidx.activity.ComponentActivity
+import androidx.annotation.OptIn
+import androidx.annotation.RequiresApi
 import androidx.camera.camera2.interop.Camera2CameraInfo
+import androidx.camera.camera2.interop.Camera2Interop
 import androidx.camera.camera2.interop.ExperimentalCamera2Interop
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.Preview
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
@@ -134,3 +142,60 @@ fun isBackCameraLevel3Device(cameraProvider: ProcessCameraProvider): Boolean {
     return false
 }
 // [END android_camerax_architecture_check_level_3]
+
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
+@OptIn(ExperimentalCamera2Interop::class)
+fun ComponentActivity.videoCallInteroperability(
+    cameraProvider: ProcessCameraProvider,
+    rotation: Int
+) {
+    // @@@ Bryan omit this line @@@
+    var camera: Camera? = null
+
+    // [START android_camerax_architecture_interop]
+    // Set underlying Camera2 stream use case to optimize for video calls.
+
+    val videoCallStreamId =
+        CameraMetadata.SCALER_AVAILABLE_STREAM_USE_CASES_VIDEO_CALL.toLong()
+
+    // Check available CameraInfos to find the first one that supports
+    // the video call stream use case.
+    // @@@ Bryan changed `getAvailableCameraInfos()` to `availableCameraInfos` @@@
+    val frontCameraInfo = cameraProvider.availableCameraInfos
+        .first { cameraInfo ->
+            val isVideoCallStreamingSupported = Camera2CameraInfo.from(cameraInfo)
+                .getCameraCharacteristic(
+                    CameraCharacteristics.SCALER_AVAILABLE_STREAM_USE_CASES
+                )?.contains(videoCallStreamId)
+
+            // @@@ Bryan changed `cameraInfo.getLensFacing()` to `cameraInfo.lensFacing` @@@
+            val isFrontFacing = (
+                    cameraInfo.lensFacing ==
+                            CameraSelector.LENS_FACING_FRONT
+                    )
+            (isVideoCallStreamingSupported == true) && isFrontFacing
+        }
+    val cameraSelector = frontCameraInfo.cameraSelector
+
+    val resolutionStrategy = ResolutionStrategy(
+        Size(1280, 720),
+        ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER,
+    )
+    val resolutionSelector = ResolutionSelector
+        .Builder()
+        .setResolutionStrategy(resolutionStrategy)
+        .build()
+
+    // Start with a Preview Builder.
+    val previewBuilder = Preview.Builder()
+        .setResolutionSelector(resolutionSelector)
+        .setTargetRotation(rotation)
+
+    // Use Camera2Interop.Extender to set the video call stream use case.
+    Camera2Interop.Extender(previewBuilder).setStreamUseCase(videoCallStreamId)
+
+    // Bind the Preview UseCase and the corresponding CameraSelector.
+    val preview = previewBuilder.build()
+    camera = cameraProvider.bindToLifecycle(this, cameraSelector, preview)
+    // [END android_camerax_architecture_interop]
+}
