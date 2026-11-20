@@ -24,6 +24,7 @@ import android.hardware.camera2.CameraCharacteristics
 import android.os.IBinder
 import android.util.Log
 import android.util.Rational
+import android.util.Size
 import android.view.Display
 import android.view.OrientationEventListener
 import android.view.Surface
@@ -46,6 +47,8 @@ import androidx.camera.core.ImageCapture
 import androidx.camera.core.Preview
 import androidx.camera.core.UseCaseGroup
 import androidx.camera.core.ViewPort
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
@@ -53,6 +56,16 @@ import androidx.lifecycle.LifecycleOwner
 import com.example.camera.snippets.R
 import java.util.concurrent.Executor
 import java.util.concurrent.TimeUnit
+
+/**
+ * @@@ Bryan: I suggest removing the code snippet at the top of the page. There are multiple other pages that discuss configuring use cases and this particular page is not solely dedicated to use case configuration. Here is my suggested copy: @@@
+ *
+ * You configure each CameraX use case to control different aspects of the use case's operations.
+ * For example, with the image capture use case, you can configure many options including the desired aspect ratio and a flash mode.
+ *
+ * In addition to configuration options, some use cases expose APIs to dynamically alter settings after the use case has been created.
+ * For information about configuration that is specific to the individual use cases, see Implement a preview, Analyze images, and Image capture.
+ */
 
 private object CameraApplicationSnippet {
     // [START android_camerax_configuration_logging]
@@ -201,6 +214,42 @@ private fun concurrentCameraSnippet(
     val secondaryCamera = concurrentCamera.cameras[1]
     // [END android_camerax_configuration_concurrent_camera]
 }
+
+private fun imageAnalysisResolution() {
+    // [START android_camerax_configuration_resolution_selector]
+    val resolutionStrategy = ResolutionStrategy(
+        Size(1280, 720),
+        ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER,
+    )
+    val resolutionSelector = ResolutionSelector
+        .Builder()
+        .setResolutionStrategy(resolutionStrategy)
+        .build()
+
+    ImageCapture.Builder()
+    val imageAnalysis = ImageAnalysis.Builder()
+        .setResolutionSelector(resolutionSelector)
+        .build()
+    // [END android_camerax_configuration_resolution_selector]
+}
+
+/**
+ * @@@ Bryan here is a full edit of the "Specify a resolution" section @@@
+ *
+ * You can request specific resolutions and aspect ratios when building use cases using the `setResolutionSelector()` method, as shown in the following code sample:
+ *
+ * [INSERT CODE SNIPPET]
+ *
+ * With [`ResolutionSelector`](link to class), you can specify preferred resolutions using [`ResolutionSelector`](link to class) and preferred aspect ratios using [`AspectRatioStrategy`](link to class).
+ * If you do not have preferences for one of the options, you can omit it.
+ * For both resolutions and aspect ratios, you can set a preferred option as well as specify fallback rules in case your preferred option is not available.
+ *
+ * Like with the automatic resolution selection process, CameraX determines possible resolutions based on device hardware and the use cases to be bound.
+ *
+ * If CameraX cannot find a suitable resolution that meets your requested resolutions and aspect ratios, the device's capabilities, and the use case's requirements, then CameraX will throw an `IllegalArgumentException` when your application attempts to bind the use cases to a lifecycle.
+ * You can specify more lenient fallback rules to allow CameraX to find a suitable resolution.
+ * You can also try-catch the `IllegalArgumentException` and show a proper message to the end users.
+ */
 
 private fun cameraControlCameraInfoSnippet(
     processCameraProvider: ProcessCameraProvider,
