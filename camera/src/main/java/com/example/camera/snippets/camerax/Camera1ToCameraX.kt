@@ -51,15 +51,16 @@ import androidx.camera.view.CameraController
 import androidx.camera.view.CameraController.VIDEO_CAPTURE
 import androidx.camera.view.LifecycleCameraController
 import androidx.camera.view.PreviewView
+import androidx.camera.view.TapToFocusInfo
 import androidx.concurrent.futures.await
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Locale
-import kotlinx.coroutines.launch
 
 private const val TAG = "Camera1ToCameraX"
 
@@ -155,6 +156,33 @@ private class ControllerStateObserversActivity : ComponentActivity() {
         cameraController.getZoomState().observe(this, pinchToZoomStateObserver)
         // [END android_camerax_camera1_to_camerax_pinch_to_zoom_controller]
     }
+}
+
+private fun ComponentActivity.observeTapToFocusInfoState(
+    cameraController: CameraController,
+) {
+    // [START android_camerax_camera1_to_camerax_tap_to_focus_controller]
+    // Observe with a LifecycleOwner so focus UI updates stop when inactive.
+    // Use tapToFocusInfo.tapPoint to place a focus indicator; it's null when
+    // no focus action is active (initially or after the 5-second auto-cancel).
+
+    val tapToFocusInfoStateObserver = Observer<TapToFocusInfo> { tapToFocusInfo ->
+        when (tapToFocusInfo.focusState) {
+            CameraController.TAP_TO_FOCUS_NOT_STARTED ->
+                Log.d(TAG, "tap-to-focus init")
+            CameraController.TAP_TO_FOCUS_STARTED ->
+                Log.d(TAG, "tap-to-focus started")
+            CameraController.TAP_TO_FOCUS_FOCUSED ->
+                Log.d(TAG, "tap-to-focus finished (focus successful)")
+            CameraController.TAP_TO_FOCUS_NOT_FOCUSED ->
+                Log.d(TAG, "tap-to-focus finished (focused unsuccessful)")
+            CameraController.TAP_TO_FOCUS_FAILED ->
+                Log.d(TAG, "tap-to-focus failed")
+        }
+    }
+
+    cameraController.getTapToFocusInfoState().observe(this, tapToFocusInfoStateObserver)
+    // [END android_camerax_camera1_to_camerax_tap_to_focus_controller]
 }
 
 private class TapToFocusProviderActivity : ComponentActivity() {
